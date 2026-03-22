@@ -72,7 +72,35 @@ http.createServer((req, res) => {
     return;
   }
 
-  // ── Yahoo Finance proxy ──────────────────────────────────────────────────
+  // ── Yahoo Finance quote proxy ────────────────────────────────────────────
+  // Returns real-time quote fields including trailingPE and epsTrailingTwelveMonths.
+  if (parsed.pathname === "/api/yahoo-quote") {
+    const symbol   = (parsed.query.symbol || "MU").toUpperCase();
+    const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`;
+
+    console.log(`[proxy] Yahoo quote → ${yahooUrl}`);
+    const proxyReq = https.get(yahooUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; micron-dashboard/1.0)",
+        "Accept":     "application/json",
+      },
+    }, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, {
+        "Content-Type":                "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on("error", (err) => {
+      console.error("[proxy] Yahoo quote error:", err.message);
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message }));
+    });
+    return;
+  }
+
+  // ── Yahoo Finance chart proxy ─────────────────────────────────────────────
   // Browsers can't call Yahoo Finance directly (CORS). The server fetches it
   // and streams the response back to the client.
   if (parsed.pathname === "/api/yahoo-chart") {

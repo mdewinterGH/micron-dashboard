@@ -666,8 +666,8 @@ async function fetchQuote() {
     volume:     fmtVol(m["10DayAverageTradingVolume"]),
     avgVolume:  fmtVol(m["3MonthAverageTradingVolume"]),
     marketCap:  m.marketCapitalization != null ? fmtLargeNum(m.marketCapitalization * 1e6) : "N/A",
-    peRatio:    pe  != null ? pe.toFixed(1)  + "×" : "N/A",
-    eps:        eps != null ? "$" + eps.toFixed(2)  : "N/A",
+    peRatio:    Number.isFinite(pe)  ? pe.toFixed(1)  + "×" : "N/A",
+    eps:        Number.isFinite(eps) ? "$" + eps.toFixed(2)  : "N/A",
     week52High: m["52WeekHigh"] != null ? m["52WeekHigh"].toFixed(2) : "N/A",
     week52Low:  m["52WeekLow"]  != null ? m["52WeekLow"].toFixed(2)  : "N/A",
   };

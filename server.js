@@ -54,6 +54,9 @@ http.createServer((req, res) => {
     const proxyReq = https.get(finnhubUrl, {
       headers: { "Accept": "application/json" },
     }, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        console.error(`[proxy] Finnhub returned HTTP ${proxyRes.statusCode} for /api/v1/${finnhubPath}`);
+      }
       res.writeHead(proxyRes.statusCode, {
         "Content-Type":                "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -117,4 +120,5 @@ http.createServer((req, res) => {
   });
 }).listen(PORT, () => {
   console.log(`Micron dashboard running at http://localhost:${PORT}`);
+  console.log(`[startup] FINNHUB_KEY: ${process.env.FINNHUB_KEY ? "set (" + process.env.FINNHUB_KEY.length + " chars)" : "NOT SET — Finnhub data will be unavailable"}`);
 });

@@ -407,7 +407,18 @@ function getYahooQuote() {
   if (!_yahooQuotePromise) {
     _yahooQuotePromise = fetch(`/api/yahoo-quote?symbol=${CONFIG.symbol}`)
       .then(r => r.json())
-      .then(d => d.quoteResponse?.result?.[0] ?? {})
+      .then(d => {
+        const raw = d.quoteResponse?.result?.[0] ?? {};
+        console.log("[yahoo-quote] raw response:", d);
+        console.log("[yahoo-quote] result[0] keys:", Object.keys(raw));
+        console.log("[yahoo-quote] PE/EPS candidates:", {
+          trailingPE:               raw.trailingPE,
+          epsTrailingTwelveMonths:  raw.epsTrailingTwelveMonths,
+          epsForward:               raw.epsForward,
+          forwardPE:                raw.forwardPE,
+        });
+        return raw;
+      })
       .finally(() => setTimeout(() => { _yahooQuotePromise = null; }, 5 * 60_000));
   }
   return _yahooQuotePromise;

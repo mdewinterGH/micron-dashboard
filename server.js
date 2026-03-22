@@ -72,19 +72,26 @@ http.createServer((req, res) => {
     return;
   }
 
-  // ── Yahoo Finance quote proxy ────────────────────────────────────────────
-  // Returns real-time quote fields including trailingPE and epsTrailingTwelveMonths.
-  if (parsed.pathname === "/api/yahoo-quote") {
-    const symbol   = (parsed.query.symbol || "MU").toUpperCase();
-    const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}`;
+  // ── Alpha Vantage proxy ──────────────────────────────────────────────────
+  // Keeps the API key server-side. Used for fundamental data (PE, EPS).
+  if (parsed.pathname === "/api/alphavantage") {
+    const avKey = process.env.ALPHAVANTAGE_KEY;
+    if (!avKey) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "ALPHAVANTAGE_KEY environment variable is not set" }));
+      return;
+    }
+    const fn     = parsed.query.function || "OVERVIEW";
+    const symbol = (parsed.query.symbol  || "MU").toUpperCase();
+    const avUrl  = `https://www.alphavantage.co/query?function=${fn}&symbol=${symbol}&apikey=${avKey}`;
 
-    console.log(`[proxy] Yahoo quote → ${yahooUrl}`);
-    const proxyReq = https.get(yahooUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; micron-dashboard/1.0)",
-        "Accept":     "application/json",
-      },
+    console.log(`[proxy] Alpha Vantage → function=${fn} symbol=${symbol}`);
+    const proxyReq = https.get(avUrl, {
+      headers: { "Accept": "application/json" },
     }, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        console.error(`[proxy] Alpha Vantage returned HTTP ${proxyRes.statusCode}`);
+      }
       res.writeHead(proxyRes.statusCode, {
         "Content-Type":                "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -93,7 +100,7 @@ http.createServer((req, res) => {
     });
 
     proxyReq.on("error", (err) => {
-      console.error("[proxy] Yahoo quote error:", err.message);
+      console.error("[proxy] Alpha Vantage error:", err.message);
       res.writeHead(502, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: err.message }));
     });
@@ -148,5 +155,6 @@ http.createServer((req, res) => {
   });
 }).listen(PORT, () => {
   console.log(`Micron dashboard running at http://localhost:${PORT}`);
-  console.log(`[startup] FINNHUB_KEY: ${process.env.FINNHUB_KEY ? "set (" + process.env.FINNHUB_KEY.length + " chars)" : "NOT SET — Finnhub data will be unavailable"}`);
+  console.log(`[startup] FINNHUB_KEY:      ${process.env.FINNHUB_KEY      ? "set (" + process.env.FINNHUB_KEY.length      + " chars)" : "NOT SET — Finnhub data will be unavailable"}`);
+  console.log(`[startup] ALPHAVANTAGE_KEY: ${process.env.ALPHAVANTAGE_KEY ? "set (" + process.env.ALPHAVANTAGE_KEY.length + " chars)" : "NOT SET — PE and EPS will be unavailable"}`)
 });

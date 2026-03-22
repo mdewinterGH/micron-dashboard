@@ -397,31 +397,19 @@ function getMetrics() {
 }
 
 // ─────────────────────────────────────────────
-//  SHARED YAHOO QUOTE CACHE
+//  SHARED ALPHA VANTAGE OVERVIEW CACHE
 //  Both fetchQuote() and fetchFinancials() use
-//  trailingPE and epsTrailingTwelveMonths from
-//  the Yahoo Finance v7 quote endpoint.
+//  PERatio and EPS from the OVERVIEW endpoint.
+//  Values are returned as strings by the API.
 // ─────────────────────────────────────────────
-let _yahooQuotePromise = null;
-function getYahooQuote() {
-  if (!_yahooQuotePromise) {
-    _yahooQuotePromise = fetch(`/api/yahoo-quote?symbol=${CONFIG.symbol}`)
+let _avOverviewPromise = null;
+function getAVOverview() {
+  if (!_avOverviewPromise) {
+    _avOverviewPromise = fetch(`/api/alphavantage?function=OVERVIEW&symbol=${CONFIG.symbol}`)
       .then(r => r.json())
-      .then(d => {
-        const raw = d.quoteResponse?.result?.[0] ?? {};
-        console.log("[yahoo-quote] raw response:", d);
-        console.log("[yahoo-quote] result[0] keys:", Object.keys(raw));
-        console.log("[yahoo-quote] PE/EPS candidates:", {
-          trailingPE:               raw.trailingPE,
-          epsTrailingTwelveMonths:  raw.epsTrailingTwelveMonths,
-          epsForward:               raw.epsForward,
-          forwardPE:                raw.forwardPE,
-        });
-        return raw;
-      })
-      .finally(() => setTimeout(() => { _yahooQuotePromise = null; }, 5 * 60_000));
+      .finally(() => setTimeout(() => { _avOverviewPromise = null; }, 5 * 60_000));
   }
-  return _yahooQuotePromise;
+  return _avOverviewPromise;
 }
 
 // ─────────────────────────────────────────────
@@ -654,10 +642,10 @@ async function apiFetch(label, url) {
 
 async function fetchQuote() {
   const { symbol: sym } = CONFIG;
-  const [q, metrics, yq] = await Promise.all([
+  const [q, metrics, av] = await Promise.all([
     apiFetch("quote",       `/api/finnhub?path=quote&symbol=${sym}`),
     apiFetch("metrics",     `/api/finnhub?path=stock/metric&symbol=${sym}&metric=all`),
-    getYahooQuote(),
+    getAVOverview(),
   ]);
 
   // Cache metrics so fetchFinancials() reuses the same response
@@ -665,9 +653,9 @@ async function fetchQuote() {
 
   const m = metrics.metric || {};
 
-  // PE and EPS come from Yahoo Finance (more accurate than Finnhub free tier)
-  const pe  = yq.trailingPE;
-  const eps = yq.epsTrailingTwelveMonths;
+  // PE and EPS come from Alpha Vantage OVERVIEW (strings — must parseFloat)
+  const pe  = parseFloat(av.PERatio);
+  const eps = parseFloat(av.EPS);
 
   return {
     price:      q.c,
@@ -755,7 +743,7 @@ async function fetchNews() {
 }
 
 async function fetchFinancials() {
-  const [metrics, yq] = await Promise.all([getMetrics(), getYahooQuote()]);
+  const [metrics, av] = await Promise.all([getMetrics(), getAVOverview()]);
   const m = metrics.metric || {};
   console.log("[financials] metric keys with values:",
     Object.entries(m).filter(([,v]) => v != null).map(([k]) => k));
@@ -763,9 +751,9 @@ async function fetchFinancials() {
   const pct  = v => na(v) ? v.toFixed(1) + "%" : "N/A";
   const mult = v => na(v) ? v.toFixed(1) + "×" : "N/A";
   const dol  = v => na(v) ? "$" + v.toFixed(2)  : "N/A";
-  // PE and EPS come from Yahoo Finance (more accurate than Finnhub free tier)
-  const pe  = yq.trailingPE;
-  const eps = yq.epsTrailingTwelveMonths;
+  // PE and EPS come from Alpha Vantage OVERVIEW (strings — must parseFloat)
+  const pe  = parseFloat(av.PERatio);
+  const eps = parseFloat(av.EPS);
   return {
     valuation: {
       "Market Cap":  na(m.marketCapitalization) ? fmtLargeNum(m.marketCapitalization * 1e6) : "N/A",
@@ -798,7 +786,7 @@ async function loadAll() {
   btn.classList.add("loading");
   btn.textContent = "↻ Loading…";
   _metricsPromise = null;    // force fresh fetch on every manual refresh
-  _yahooQuotePromise = null;
+  _avOverviewPromise = null;
 
   try {
     // Run all fetches concurrently; use allSettled so one failure doesn't abort the rest
